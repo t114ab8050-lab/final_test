@@ -6,11 +6,19 @@ def relu(x):
     # TODO: Implement the Rectified Linear Unit
     return np.maximum(0, x)  
 
-def softmax(x):
+def softmax(x, axis=None):
+    """
+    Compute softmax over the specified axis.
+    If axis is None, use the last axis.
+    """
     x = np.array(x, dtype=float)
 
+    if axis is None:
+        axis = -1
+
     exp_x = np.exp(x)
-    return exp_x / np.sum(exp_x)
+    sum_exp = np.sum(exp_x, axis=axis, keepdims=True)
+    return exp_x / sum_exp
     
 # === Flatten ===
 def flatten(x):
