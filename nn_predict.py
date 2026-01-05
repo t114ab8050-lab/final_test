@@ -7,25 +7,22 @@ def relu(x):
     return np.maximum(0, x)  
 
 def softmax(x):
-    x = np.asarray(x, dtype=np.float64)
+    x = np.array(x, dtype=np.float64)
 
-    # 記住原始 shape
-    original_shape = x.shape
-
-    # 一律轉成 2D: (batch, classes)
+    # Case 1: 1D vector
     if x.ndim == 1:
-        x = x.reshape(1, -1)
+        m = np.max(x)
+        exp_x = np.exp(x - m)
+        return exp_x / np.sum(exp_x)
 
-    # 數值穩定 softmax
-    x = x - np.max(x, axis=1, keepdims=True)
-    exp_x = np.exp(x)
-    out = exp_x / np.sum(exp_x, axis=1, keepdims=True)
+    # Case 2: 2D batch (row-wise softmax)
+    elif x.ndim == 2:
+        m = np.max(x, axis=1, keepdims=True)
+        exp_x = np.exp(x - m)
+        return exp_x / np.sum(exp_x, axis=1, keepdims=True)
 
-    # 還原 shape
-    if len(original_shape) == 1:
-        return out.reshape(-1)
     else:
-        return out.reshape(original_shape)
+        raise ValueError("softmax only supports 1D or 2D input")
     
 # === Flatten ===
 def flatten(x):
