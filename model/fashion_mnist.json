@@ -4,14 +4,8 @@
         "type": "Conv2D",
         "config": {
             "filters": 32,
-            "kernel_size": [
-                3,
-                3
-            ],
-            "strides": [
-                1,
-                1
-            ],
+            "kernel_size": 3,
+            "strides": 1,
             "padding": "SAME",
             "activation": "relu"
         },
@@ -24,14 +18,8 @@
         "name": "max_pooling2d",
         "type": "MaxPooling2D",
         "config": {
-            "pool_size": [
-                2,
-                2
-            ],
-            "strides": [
-                2,
-                2
-            ]
+            "pool_size": 2,
+            "strides": 2
         },
         "weights": []
     },
@@ -40,14 +28,8 @@
         "type": "Conv2D",
         "config": {
             "filters": 64,
-            "kernel_size": [
-                3,
-                3
-            ],
-            "strides": [
-                1,
-                1
-            ],
+            "kernel_size": 3,
+            "strides": 1,
             "padding": "SAME",
             "activation": "relu"
         },
@@ -60,14 +42,32 @@
         "name": "max_pooling2d_1",
         "type": "MaxPooling2D",
         "config": {
-            "pool_size": [
-                2,
-                2
-            ],
-            "strides": [
-                2,
-                2
-            ]
+            "pool_size": 2,
+            "strides": 2
+        },
+        "weights": []
+    },
+    {
+        "name": "conv2d_2",
+        "type": "Conv2D",
+        "config": {
+            "filters": 128,
+            "kernel_size": 3,
+            "strides": 1,
+            "padding": "SAME",
+            "activation": "relu"
+        },
+        "weights": [
+            "conv2d_2_kernel",
+            "conv2d_2_bias"
+        ]
+    },
+    {
+        "name": "max_pooling2d_2",
+        "type": "MaxPooling2D",
+        "config": {
+            "pool_size": 2,
+            "strides": 2
         },
         "weights": []
     },

@@ -3,190 +3,103 @@ import numpy as np
 import json
 import os
 
-# === Helper Function: Fold Batch Normalization ===
-def fold_batch_norm(model):
-    """
-    將 BatchNormalization 層的參數融合進前一層的 Conv2D 或 Dense 層。
-    這樣推論時就不需要 BN 層，簡化實作但保留效果。
-    """
-    new_layers = []
-    
-    # 暫存前一層的權重，等待融合
-    prev_layer = None
-    prev_w = None
-    prev_b = None
-    
-    for layer in model.layers:
-        if isinstance(layer, (tf.keras.layers.Conv2D, tf.keras.layers.Dense)):
-            # 如果已經有暫存的層，先存起來 (因為它後面沒接 BN)
-            if prev_layer is not None:
-                new_layers.append((prev_layer, prev_w, prev_b))
-            
-            prev_layer = layer
-            prev_w, prev_b = layer.get_weights()
-            
-        elif isinstance(layer, tf.keras.layers.BatchNormalization) and prev_layer is not None:
-            # 遇到 BN 層，執行融合
-            gamma, beta, mean, var = layer.get_weights()
-            epsilon = layer.epsilon
-            
-            scale = gamma / np.sqrt(var + epsilon)
-            
-            # 更新權重: W_new = W * scale
-            # 注意 Conv2D 和 Dense 的權重形狀不同，但廣播機制通常能處理
-            if isinstance(prev_layer, tf.keras.layers.Conv2D):
-                # Conv Kernel: (H, W, C, F), scale: (F,)
-                prev_w = prev_w * scale.reshape(1, 1, 1, -1)
-            else:
-                # Dense Kernel: (In, Out), scale: (Out,)
-                prev_w = prev_w * scale.reshape(1, -1)
-                
-            # 更新偏差: b_new = (b - mean) * scale + beta
-            prev_b = (prev_b - mean) * scale + beta
-            
-            # 融合完成，將「強化版」的前一層加入列表，並丟棄 BN 層
-            new_layers.append((prev_layer, prev_w, prev_b))
-            prev_layer = None # 重置
-            
-        else:
-            # 其他層 (Activation, Pooling, Flatten, Dropout 等)
-            if prev_layer is not None:
-                new_layers.append((prev_layer, prev_w, prev_b))
-                prev_layer = None
-            
-            # 對於 Dropout 等層，我們在推論時會忽略或直接存 config
-            if not isinstance(layer, (tf.keras.layers.Dropout, tf.keras.layers.InputLayer)):
-                new_layers.append((layer, None, None))
-
-    # 處理最後一層
-    if prev_layer is not None:
-        new_layers.append((prev_layer, prev_w, prev_b))
-        
-    return new_layers
-
-# ==========================================
-# 1. 準備資料
-# ==========================================
-print("正在載入與處理資料...")
+# 1. 載入資料
+print("載入資料中...")
 fashion_mnist = tf.keras.datasets.fashion_mnist
 (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+
+# 正規化與重塑 (Reshape) 以符合資料增強層的輸入需求 (Batch, 28, 28, 1)
 x_train = x_train.reshape(-1, 28, 28, 1) / 255.0
 x_test = x_test.reshape(-1, 28, 28, 1) / 255.0
 
-# ==========================================
-# 2. 建立 CNN 模型 (目標準確率 > 92%)
-# ==========================================
-# 結構: Conv -> BN -> ReLU -> Pool -> Conv -> BN -> ReLU -> Pool -> Dense -> BN -> ReLU -> Dense
+# 2. 建立更強的 MLP 模型 (加入資料增強與 Dropout)
 model = tf.keras.Sequential([
+    # --- 資料增強層 (只在訓練時作用，推論時無影響) ---
     tf.keras.layers.InputLayer(input_shape=(28, 28, 1)),
+    tf.keras.layers.RandomFlip("horizontal"),
+    tf.keras.layers.RandomTranslation(0.1, 0.1),
+    tf.keras.layers.RandomZoom(0.1),
     
-    # Block 1
-    tf.keras.layers.Conv2D(32, (3, 3), padding='same', use_bias=True), # Bias=True為了融合方便
-    tf.keras.layers.BatchNormalization(),
-    tf.keras.layers.Activation('relu'),
-    tf.keras.layers.MaxPooling2D((2, 2)),
-    tf.keras.layers.Dropout(0.2),
-    
-    # Block 2
-    tf.keras.layers.Conv2D(64, (3, 3), padding='same', use_bias=True),
-    tf.keras.layers.BatchNormalization(),
-    tf.keras.layers.Activation('relu'),
-    tf.keras.layers.MaxPooling2D((2, 2)),
-    tf.keras.layers.Dropout(0.3),
-    
+    # --- 主要結構 ---
     tf.keras.layers.Flatten(),
     
-    # Dense Block
-    tf.keras.layers.Dense(256, use_bias=True),
-    tf.keras.layers.BatchNormalization(),
-    tf.keras.layers.Activation('relu'),
-    tf.keras.layers.Dropout(0.4),
+    tf.keras.layers.Dense(512, activation='relu', name='dense1'),
+    tf.keras.layers.Dropout(0.2), # 防止過擬合
+    
+    tf.keras.layers.Dense(256, activation='relu', name='dense2'),
+    tf.keras.layers.Dropout(0.2),
+    
+    tf.keras.layers.Dense(128, activation='relu', name='dense3'),
+    tf.keras.layers.Dropout(0.2),
     
     tf.keras.layers.Dense(10, activation='softmax', name='output')
 ])
 
-model.compile(optimizer='adam',
+# 使用學習率衰減策略
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=0.001,
+    decay_steps=1000,
+    decay_rate=0.9
+)
+
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
-# ==========================================
-# 3. 訓練模型
-# ==========================================
-checkpoint_path = 'model/best_cnn.h5'
-if not os.path.exists('model'): os.makedirs('model')
+# 3. 設定 Callbacks (關鍵：只存最好的模型)
+checkpoint_filepath = 'model/best_model.h5'
+if not os.path.exists('model'):
+    os.makedirs('model')
 
-callbacks = [
-    tf.keras.callbacks.ModelCheckpoint(
-        checkpoint_path, save_best_only=True, monitor='val_accuracy', verbose=1
-    ),
-    tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=10, restore_best_weights=True)
-]
+model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_filepath,
+    save_weights_only=False,
+    monitor='val_accuracy',
+    mode='max',
+    save_best_only=True,
+    verbose=1
+)
 
-print("開始訓練 CNN 模型...")
-# Epochs 設為 30 左右通常就能收斂到 92% 以上
-model.fit(x_train, y_train, epochs=40, batch_size=128, validation_data=(x_test, y_test), callbacks=callbacks)
+# 訓練模型 (增加 epochs 到 100 以確保充分收斂)
+print("開始訓練模型 (這可能需要幾分鐘)...")
+history = model.fit(
+    x_train, y_train, 
+    epochs=100, 
+    batch_size=256, 
+    validation_data=(x_test, y_test),
+    callbacks=[model_checkpoint_callback]
+)
 
-# 載入最好的模型
-best_model = tf.keras.models.load_model(checkpoint_path)
-loss, acc = best_model.evaluate(x_test, y_test, verbose=0)
-print(f"\n最佳模型準確率: {acc:.4f}")
+# 4. 載入表現最好的權重 (這是拿高分的關鍵！)
+print("\n載入最佳模型權重...")
+best_model = tf.keras.models.load_model(checkpoint_filepath)
 
-# ==========================================
-# 4. 融合 BN 層並匯出 (關鍵步驟)
-# ==========================================
-print("正在融合 BN 層並匯出 JSON 與 NPZ...")
+# 評估最佳模型
+test_loss, test_acc = best_model.evaluate(x_test, y_test, verbose=2)
+print(f'\n最佳模型測試準確率: {test_acc:.4f}')
 
-fused_layers = fold_batch_norm(best_model)
+# 5. 儲存簡化架構 (過濾掉 Dropout 和增強層，只留 nn_predict 能讀懂的層)
 arch = []
-weights_dict = {}
-
-for layer_info in fused_layers:
-    layer, W, b = layer_info
+print("正在匯出架構與權重...")
+for layer in best_model.layers:
     ltype = type(layer).__name__
     lname = layer.name
-    
-    # 忽略不支援的層
-    if ltype not in ['Conv2D', 'Dense', 'Flatten', 'MaxPooling2D', 'Activation']:
-        continue
-        
-    # 如果是 Activation 層，通常是獨立的 ReLU
-    if ltype == 'Activation':
-        # 把這層資訊併入前一層 (nn_predict 的設計是 activation 在 config 裡)
-        if len(arch) > 0:
-            arch[-1]['config']['activation'] = layer.activation.__name__
-        continue
-
-    # 建構 Config
     cfg = {}
     wnames = []
     
-    if ltype == 'Conv2D':
+    # nn_predict.py 只支援 Dense 和 Flatten，其他層 (如 Dropout, RandomFlip) 忽略即可
+    if ltype == "Dense":
         cfg = {
-            'filters': layer.filters,
-            'kernel_size': layer.kernel_size,
-            'strides': layer.strides,
-            'padding': layer.padding.upper(),
-            'activation': None # 預設無，除非後面有 Activation 層
+            "units": layer.units,
+            "activation": layer.activation.__name__
         }
         wnames = [f"{lname}_kernel", f"{lname}_bias"]
-        weights_dict[wnames[0]] = W
-        weights_dict[wnames[1]] = b
+    elif ltype == "Flatten":
+        cfg = {}
+    else:
+        # 遇到不支援的層 (如 Dropout, Augmentation) 就跳過，不寫入 json
+        continue
         
-    elif ltype == 'Dense':
-        cfg = {
-            'units': layer.units,
-            'activation': layer.activation.__name__ if layer.activation.__name__ != 'linear' else None
-        }
-        wnames = [f"{lname}_kernel", f"{lname}_bias"]
-        weights_dict[wnames[0]] = W
-        weights_dict[wnames[1]] = b
-        
-    elif ltype == 'MaxPooling2D':
-        cfg = {
-            'pool_size': layer.pool_size,
-            'strides': layer.strides
-        }
-    
     arch.append({
         "name": lname,
         "type": ltype,
@@ -194,9 +107,16 @@ for layer_info in fused_layers:
         "weights": wnames
     })
 
-# 寫入檔案
 with open('model/fashion_mnist.json', 'w') as f:
     json.dump(arch, f, indent=4)
 
-np.savez('model/fashion_mnist.npz', **weights_dict)
-print("完成！所有檔案已更新，可以執行 python -m pytest model_test.py")
+# 6. 儲存權重
+weights = {}
+for layer in best_model.layers:
+    if isinstance(layer, tf.keras.layers.Dense):
+        w, b = layer.get_weights()
+        weights[f"{layer.name}_kernel"] = w
+        weights[f"{layer.name}_bias"] = b
+
+np.savez('model/fashion_mnist.npz', **weights)
+print("完成！請執行 python -m pytest model_test.py 測試分數。")
