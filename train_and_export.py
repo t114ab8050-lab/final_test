@@ -47,7 +47,7 @@ lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
 
 model.fit(
     x_train, y_train,
-    epochs=30,
+    epochs=50,
     batch_size=128,
     validation_split=0.1,
     callbacks=[lr_callback],
