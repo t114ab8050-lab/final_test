@@ -1,92 +1,63 @@
-import os
-import json
+import tensorflow as tf
 import numpy as np
+import json
+import os
 
-def train_and_export(seed=42):
-    import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras import layers
+# 1. 載入資料
+fashion_mnist = tf.keras.datasets.fashion_mnist
+(x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+x_train, x_test = x_train / 255.0, x_test / 255.0
 
-    tf.random.set_seed(seed)
-    np.random.seed(seed)
+# 2. 建立更深更大的模型
+model = tf.keras.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28)),
+    tf.keras.layers.Dense(512, activation='relu', name='dense1'),
+    tf.keras.layers.Dense(256, activation='relu', name='dense2'),
+    tf.keras.layers.Dense(128, activation='relu', name='dense3'),
+    tf.keras.layers.Dense(64, activation='relu', name='dense4'),
+    tf.keras.layers.Dense(10, activation='softmax', name='dense5')
+])
 
-    # ===== Load data =====
-    (x_train, y_train), (x_test, y_test) = keras.datasets.fashion_mnist.load_data()
-    x_train = x_train.astype("float32") / 255.0
-    x_test  = x_test.astype("float32") / 255.0
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
 
-    # ===== Model =====
-    model = keras.Sequential([
-        layers.Input(shape=(28, 28)),
-        layers.Flatten(),
+# 3. 訓練模型（epochs 增加到 40）
+model.fit(x_train, y_train, epochs=40, batch_size=128, validation_data=(x_test, y_test))
 
-        layers.Dense(256),
-        layers.BatchNormalization(),
-        layers.Activation("relu"),
-        layers.Dropout(0.3),
+# 4. 儲存模型
+if not os.path.exists('model'):
+    os.makedirs('model')
+model.save('model/fashion_mnist.h5')
 
-        layers.Dense(256),
-        layers.BatchNormalization(),
-        layers.Activation("relu"),
-        layers.Dropout(0.3),
+# 5. 儲存簡化架構
+arch = []
+for layer in model.layers:
+    ltype = type(layer).__name__
+    lname = layer.name
+    cfg = {}
+    wnames = []
+    if ltype == "Dense":
+        cfg = {
+            "units": layer.units,
+            "activation": layer.activation.__name__
+        }
+        wnames = [f"{lname}_kernel", f"{lname}_bias"]
+    elif ltype == "Flatten":
+        cfg = {}
+    arch.append({
+        "name": lname,
+        "type": ltype,
+        "config": cfg,
+        "weights": wnames
+    })
+with open('model/fashion_mnist.json', 'w') as f:
+    json.dump(arch, f)
 
-        layers.Dense(10, activation="softmax"),
-    ])
-
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=1e-3),
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"],
-    )
-
-    model.fit(
-        x_train, y_train,
-        epochs=40,
-        batch_size=128,
-        validation_split=0.1,
-        callbacks=[
-            keras.callbacks.EarlyStopping(
-                monitor="val_accuracy",
-                patience=6,
-                restore_best_weights=True
-            )
-        ],
-        verbose=2,
-    )
-
-    test_acc = model.evaluate(x_test, y_test, verbose=0)[1]
-    print(f"[TF] Test accuracy = {test_acc:.4f}")
-
-    # ===== Export for NumPy inference =====
-    os.makedirs("model", exist_ok=True)
-
-    model_arch = [{"class_name": "Flatten", "config": {}}]
-    weights = {}
-
-    # ⚠ 只匯出 Dense（NumPy inference 只支援這個）
-    for layer in model.layers:
-        if isinstance(layer, layers.Dense):
-            W, b = layer.get_weights()
-            wname = layer.name + "_W"
-            bname = layer.name + "_b"
-
-            weights[wname] = W.astype(np.float32)
-            weights[bname] = b.astype(np.float32)
-
-            model_arch.append({
-                "class_name": "Dense",
-                "config": {
-                    "weights": [wname, bname],
-                    "activation": layer.activation.__name__
-                }
-            })
-
-    with open("model/fashion_mnist.json", "w") as f:
-        json.dump(model_arch, f, indent=2)
-
-    np.savez("model/fashion_mnist.npz", **weights)
-
-    print("[DONE] Exported model/fashion_mnist.json & fashion_mnist.npz")
-
-if __name__ == "__main__":
-    train_and_export()
+# 6. 儲存權重（名稱需與 arch 對應）
+weights = {}
+for layer in model.layers:
+    if isinstance(layer, tf.keras.layers.Dense):
+        weights[f"{layer.name}_kernel"] = layer.get_weights()[0]
+        weights[f"{layer.name}_bias"] = layer.get_weights()[1]
+np.savez('model/fashion_mnist.npz', **weights)
