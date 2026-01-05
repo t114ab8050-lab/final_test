@@ -1,0 +1,130 @@
+name: Autograding Tests
+'on':
+- push
+- repository_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Model Inference
+      id: model-inference
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Model Inference
+        setup-command: pip3 install pytest pandas argparse
+        command: pytest model_test.py::test_inference
+        timeout: 10
+        max-score: 50
+    - name: relu()
+      id: relu
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: relu()
+        setup-command: ''
+        command: pytest model_test.py::test_relu
+        timeout: 10
+        max-score: 10
+    - name: softmax()
+      id: softmax
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: softmax()
+        setup-command: ''
+        command: model_test.py::test_softmax
+        timeout: 10
+        max-score: 10
+    - name: Accuracy >= 80
+      id: accuracy-80
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 80
+        setup-command: ''
+        command: pytest model_test.py::test_acc_80
+        timeout: 10
+        max-score: 10
+    - name: Accuracy >= 82
+      id: accuracy-82
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 82
+        setup-command: ''
+        command: pytest model_test.py::test_acc_82
+        timeout: 10
+        max-score: 2
+    - name: Accuracy >= 84
+      id: accuracy-84
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 84
+        setup-command: ''
+        command: pytest model_test.py::test_acc_84
+        timeout: 10
+        max-score: 2
+    - name: Accuracy >= 86
+      id: accuracy-86
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 86
+        setup-command: ''
+        command: pytest model_test.py::test_acc_86
+        timeout: 10
+        max-score: 2
+    - name: Accuracy >= 88
+      id: accuracy-88
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 88
+        setup-command: ''
+        command: pytest model_test.py::test_acc_88
+        timeout: 10
+        max-score: 3
+    - name: Accuracy >= 90
+      id: accuracy-90
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 90
+        setup-command: ''
+        command: pytest model_test.py::test_acc_80
+        timeout: 10
+        max-score: 3
+    - name: Accuracy >= 91
+      id: accuracy-91
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 91
+        setup-command: ''
+        command: pytest model_test.py::test_acc_91
+        timeout: 10
+        max-score: 4
+    - name: Accuracy >= 92
+      id: accuracy-92
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: Accuracy >= 92
+        setup-command: ''
+        command: pytest model_test.py::test_acc_92
+        timeout: 10
+        max-score: 4
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        MODEL-INFERENCE_RESULTS: "${{steps.model-inference.outputs.result}}"
+        RELU_RESULTS: "${{steps.relu.outputs.result}}"
+        SOFTMAX_RESULTS: "${{steps.softmax.outputs.result}}"
+        ACCURACY-80_RESULTS: "${{steps.accuracy-80.outputs.result}}"
+        ACCURACY-82_RESULTS: "${{steps.accuracy-82.outputs.result}}"
+        ACCURACY-84_RESULTS: "${{steps.accuracy-84.outputs.result}}"
+        ACCURACY-86_RESULTS: "${{steps.accuracy-86.outputs.result}}"
+        ACCURACY-88_RESULTS: "${{steps.accuracy-88.outputs.result}}"
+        ACCURACY-90_RESULTS: "${{steps.accuracy-90.outputs.result}}"
+        ACCURACY-91_RESULTS: "${{steps.accuracy-91.outputs.result}}"
+        ACCURACY-92_RESULTS: "${{steps.accuracy-92.outputs.result}}"
+      with:
+        runners: model-inference,relu,softmax,accuracy-80,accuracy-82,accuracy-84,accuracy-86,accuracy-88,accuracy-90,accuracy-91,accuracy-92
