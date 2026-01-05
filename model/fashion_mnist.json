@@ -1,0 +1,104 @@
+[
+    {
+        "name": "conv2d",
+        "type": "Conv2D",
+        "config": {
+            "filters": 32,
+            "kernel_size": [
+                3,
+                3
+            ],
+            "strides": [
+                1,
+                1
+            ],
+            "padding": "SAME",
+            "activation": "relu"
+        },
+        "weights": [
+            "conv2d_kernel",
+            "conv2d_bias"
+        ]
+    },
+    {
+        "name": "max_pooling2d",
+        "type": "MaxPooling2D",
+        "config": {
+            "pool_size": [
+                2,
+                2
+            ],
+            "strides": [
+                2,
+                2
+            ]
+        },
+        "weights": []
+    },
+    {
+        "name": "conv2d_1",
+        "type": "Conv2D",
+        "config": {
+            "filters": 64,
+            "kernel_size": [
+                3,
+                3
+            ],
+            "strides": [
+                1,
+                1
+            ],
+            "padding": "SAME",
+            "activation": "relu"
+        },
+        "weights": [
+            "conv2d_1_kernel",
+            "conv2d_1_bias"
+        ]
+    },
+    {
+        "name": "max_pooling2d_1",
+        "type": "MaxPooling2D",
+        "config": {
+            "pool_size": [
+                2,
+                2
+            ],
+            "strides": [
+                2,
+                2
+            ]
+        },
+        "weights": []
+    },
+    {
+        "name": "flatten",
+        "type": "Flatten",
+        "config": {},
+        "weights": []
+    },
+    {
+        "name": "dense",
+        "type": "Dense",
+        "config": {
+            "units": 256,
+            "activation": "relu"
+        },
+        "weights": [
+            "dense_kernel",
+            "dense_bias"
+        ]
+    },
+    {
+        "name": "output",
+        "type": "Dense",
+        "config": {
+            "units": 10,
+            "activation": "softmax"
+        },
+        "weights": [
+            "output_kernel",
+            "output_bias"
+        ]
+    }
+]
