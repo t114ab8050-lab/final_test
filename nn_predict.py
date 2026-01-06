@@ -6,7 +6,7 @@ def relu(x):
     # TODO: Implement the Rectified Linear Unit
     return np.maximum(0, x)  
 
-def softmax(x, axis=None):
+def test_softmax(x, axis=None):
     x = np.array(x, dtype=np.float64)
 
     # 🔒 關鍵：強制規則
