@@ -7,21 +7,22 @@ def relu(x):
     return np.maximum(0, x)  
 
 def softmax(x, axis=None):
-    """
-    Compute softmax over the specified axis.
-    If axis is None, use the last axis.
-    """
-    x = np.array(x, dtype=float)
+    x = np.array(x, dtype=np.float64)
 
-    if axis is None:
-        axis = -1
+    # 🔒 關鍵：強制規則
+    if x.ndim == 1:
+        x = x - np.max(x)
+        exp_x = np.exp(x)
+        return exp_x / np.sum(exp_x)
 
-    x_max = np.max(x, axis=axis, keepdims=True)
-    
-    exp_x = np.exp(x - x_max)
-    
-    sum_exp = np.sum(exp_x, axis=axis, keepdims=True)
-    return exp_x / sum_exp
+    elif x.ndim == 2:
+        # batch, class → 一律對 class 軸做 softmax
+        x = x - np.max(x, axis=1, keepdims=True)
+        exp_x = np.exp(x)
+        return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+
+    else:
+        raise ValueError("Unsupported input shape for softmax")
     
 # === Flatten ===
 def flatten(x):
