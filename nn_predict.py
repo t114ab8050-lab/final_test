@@ -6,23 +6,16 @@ def relu(x):
     # TODO: Implement the Rectified Linear Unit
     return np.maximum(0, x)  
 
-def test_softmax(x, axis=None):
+def softmax(x, axis=None):
     x = np.array(x, dtype=np.float64)
-
-    # 🔒 關鍵：強制規則
     if x.ndim == 1:
         x = x - np.max(x)
         exp_x = np.exp(x)
         return exp_x / np.sum(exp_x)
-
     elif x.ndim == 2:
-        # batch, class → 一律對 class 軸做 softmax
         x = x - np.max(x, axis=1, keepdims=True)
         exp_x = np.exp(x)
         return exp_x / np.sum(exp_x, axis=1, keepdims=True)
-
-    else:
-        raise ValueError("Unsupported input shape for softmax")
     
 # === Flatten ===
 def flatten(x):
