@@ -16,7 +16,10 @@ def softmax(x, axis=None):
     if axis is None:
         axis = -1
 
-    exp_x = np.exp(x)
+    x_max = np.max(x, axis=axis, keepdims=True)
+    
+    exp_x = np.exp(x - x_max)
+    
     sum_exp = np.sum(exp_x, axis=axis, keepdims=True)
     return exp_x / sum_exp
     
